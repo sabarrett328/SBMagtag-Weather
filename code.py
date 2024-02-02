@@ -269,15 +269,15 @@ curtim.text = "As of: {:d}:{:02d}".format(
 
 #***** Fill in the data for current conditions
 curtemp.text = "{:3.0f}".format(currentd["temp"])
-#curfeels.text = currentd["feels_like"]
+#curfeels.text = "{:3.0f}".format(currentd["feels_like"])
 curprs.text = "{:2.2f}".format(currentd["pressure"] * 0.02952998751)
-curwind.text = "{:3.0f}mph".format(currentd["wind_speed"])
-#curgust.text = currentd["wind_gust"]
+curwind.text = "{:3.0f}/".format(currentd["wind_speed"])
+#curgust.text = {:3.0f}/".format(currentd["wind_gust"])
 curhumid.text = "{:3d}%".format(currentd["humidity"])
 curuv.text = "{:3.0f}%".format(currentd["uvi"])
 #curaq.text = aqi_data["list"][0]["main"]["aqi"]
 curcloud.text = "{:3d}%".format(currentd["clouds"])
-#curvis.text = currentd["visibility"]
+#curvis.text = "{:2.0f}/".format(currentd["visibility"])
 curicon[0] = ICON_MAP.index(currentd["weather"][0]["icon"][:2])
 curcond.text = currentd["weather"][0]["main"]
 sunrise.text = "{:2d}:{:02d} AM".format(sunr.tm_hour, sunr.tm_min)
