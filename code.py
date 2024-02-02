@@ -1,7 +1,3 @@
-# SPDX-FileCopyrightText: 2020 Carter Nelson for Adafruit Industries
-#
-# SPDX-License-Identifier: MIT
-# pylint: disable=redefined-outer-name, eval-used, wrong-import-order
 
 import time
 import terminalio
@@ -12,7 +8,13 @@ from adafruit_magtag.magtag import MagTag
 from secrets import secrets
 
 # --| USER CONFIG |--------------------------
-METRIC = False  # set to True for metric units
+lat = secrets["openweather_location"][0]
+lon = secrets["openweather_location"][1]
+key = secrets["openweather_token"]
+
+weather_url = "https://api.openweathermap.org/data/3.0/onecall?units=imperial&exclude=minutely,hourly,alerts&"
+aqi_url = "https://api.openweathermap.org/data/2.5/air_pollution?"
+
 # -------------------------------------------
 
 # ----------------------------
@@ -22,20 +24,20 @@ BACKGROUND_BMP = "/bmps/weather_bg.bmp"
 ICONS_LARGE_FILE = "/bmps/weather_icons_70px.bmp"
 ICONS_SMALL_FILE = "/bmps/weather_icons_20px.bmp"
 ICON_MAP = ("01", "02", "03", "04", "09", "10", "11", "13", "50")
-DAYS = ("Mon", "Tue", "Wed", "Thur", "Fri", "Sat", "Sun")
+DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
 MONTHS = (
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
+    "January",
+    "February",
+    "March",
+    "April",
     "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 )
 magtag = MagTag()
 
@@ -52,51 +54,11 @@ icons_small_bmp, icons_small_pal = adafruit_imageload.load(ICONS_SMALL_FILE)
 
 # /////////////////////////////////////////////////////////////////////////
 
-
-def get_data_source_url(api="onecall", location=None):
-    """Build and return the URL for the OpenWeather API."""
-    if api.upper() == "GEO":
-        URL = "https://api.openweathermap.org/geo/1.0/direct?q="
-        URL += location
-    elif api.upper() == "GEOREV":
-        URL = "https://api.openweathermap.org/geo/1.0/reverse?limit=1"
-        URL += "&lat={}".format(location[0])
-        URL += "&lon={}".format(location[1])
-    elif api.upper() == "ONECALL":
-        URL = "https://api.openweathermap.org/data/3.0/onecall?exclude=minutely,hourly,alerts"
-        URL += "&lat={}".format(location[0])
-        URL += "&lon={}".format(location[1])
-    else:
-        raise ValueError("Unknown API type: " + api)
-    return URL + "&appid=" + secrets["openweather_token"]
-
-
-def get_latlon(city_name):
-    """Use the Geolocation API to determine lat/lon for given city."""
-    magtag.url = get_data_source_url(api="geo", location=city_name)
-    raw_data = eval(magtag.fetch())[0]
-    return raw_data["lat"], raw_data["lon"]
-
-
-def get_city(latlon_location):
-    """Use the Geolocation API to determine city for given lat/lon."""
-    magtag.url = get_data_source_url(api="georev", location=latlon_location)
-    raw_data = eval(magtag.fetch())[0]
-    return raw_data["name"] + ", " + raw_data["country"]
-
-
-def get_forecast(location):
-    """Use OneCall API to fetch forecast and timezone data."""
-    resp = magtag.network.fetch(get_data_source_url(api="onecall", location=location))
-    json_data = resp.json()
-    return json_data["daily"], json_data["current"], json_data["current"]["dt"], json_data["timezone_offset"]
-
-
 def make_banner(x=0, y=0):
     """Make a single future forecast info banner group."""
     day_of_week = label.Label(terminalio.FONT, text="DAY", color=0x000000)
     day_of_week.anchor_point = (0, 0.5)
-    day_of_week.anchored_position = (0, 11)
+    day_of_week.anchored_position = (0, 10)
 
     icon = displayio.TileGrid(
         icons_small_bmp,
@@ -120,61 +82,22 @@ def make_banner(x=0, y=0):
 
     return group
 
-
-def temperature_text(tempK):
-    if METRIC:
-        return "{:3.0f}C".format(tempK - 273.15)
-    else:
-        return "{:3.0f}".format(32.0 + 1.8 * (tempK - 273.15))
-
-
-def wind_text(speedms):
-    if METRIC:
-        return "{:3.0f}m/s".format(speedms)
-    else:
-        return "{:3.0f}mph".format(2.23694 * speedms)
-
-
 def update_banner(banner, data):
     """Update supplied forecast banner with supplied data."""
     banner[0].text = DAYS[time.localtime(data["dt"]).tm_wday][:3].upper()
     banner[1][0] = ICON_MAP.index(data["weather"][0]["icon"][:2])
-    banner[2].text = temperature_text(data["temp"]["min"])+"/"+temperature_text(data["temp"]["max"])
+    banner[2].text = "{:3.0f}".format(data["temp"]["min"]) + "/" + "{:3.0f}".format(data["temp"]["max"])
 
 
-def update_today(data, tz_offset=0):
-    """Update today info banner."""
-    today_min_temp.text = temperature_text(data["temp"]["min"])
-    today_max_temp.text = temperature_text(data["temp"]["max"])
-    #today_pop.text = "{2d}%".format(data["pop"])
-
-def update_now(data, tz_offset=0):
-    """Update hourly info banner."""
-    date = time.localtime(data["dt"])
-    sunrise = time.localtime(data["sunrise"] + tz_offset)
-    sunset = time.localtime(data["sunset"] + tz_offset)
-
-    today_date.text = "{} {} {}, {}".format(
-        DAYS[date.tm_wday].upper(),
-        MONTHS[date.tm_mon - 1].upper(),
-        date.tm_mday,
-        date.tm_year,
-    )
-    today_icon[0] = ICON_MAP.index(data["weather"][0]["icon"][:2])
-    #today_description.text = data["weather"]["main"]
-    today_cur_temp.text = temperature_text(data["temp"])
-    today_pressure.text = "{:4d}mb".format(data["pressure"])
-    today_humidity.text = "{:3d}%".format(data["humidity"])
-    today_wind.text = wind_text(data["wind_speed"])
-    today_clouds.text = "{:3d}%".format(data["clouds"])
-    #today_uvi.text - "{:3d}%".format(data["uvi"])
-    today_sunrise.text = "{:2d}:{:02d} AM".format(sunrise.tm_hour, sunrise.tm_min)
-    today_sunset.text = "{:2d}:{:02d} PM".format(sunset.tm_hour - 12, sunset.tm_min)
 
 def go_to_sleep(current_time):
-    """Enter deep sleep for time needed."""
-       # wake up in one hour
-    seconds_to_sleep = (1 * 60 * 60 )
+    hour, minutes, seconds = time.localtime(current_time)[3:6]
+    # if its after 10pm, sleep till 5 am.  if not, sleep for an hour 
+    if hour >21:
+        seconds_to_sleep = (((24-hour)*3600)-(minutes*60) + (3600*5))
+    else:
+        seconds_to_sleep = 3600
+
     print(
         "Sleeping for {} hours, {} minutes".format(
             seconds_to_sleep // 3600, (seconds_to_sleep // 60) % 60
@@ -184,110 +107,95 @@ def go_to_sleep(current_time):
 
 
 # ===========
-# Location
-# ===========
-if isinstance(secrets["openweather_location"], str):
-    # Get lat/lon using city name
-    city = secrets["openweather_location"]
-    print("Getting lat/lon for city:", city)
-    latlon = get_latlon(city)
-elif isinstance(secrets["openweather_location"], tuple):
-    # Get city name using lat/lon
-    latlon = secrets["openweather_location"]
-    print("Getting city name for lat/lon:", latlon)
-    city = get_city(latlon)
-else:
-    raise ValueError("Unknown location:", secrets["openweather_location"])
-
-print("City =", city)
-print("Lat/Lon = ", latlon)
-
-# ===========
 # U I
 # ===========
-today_date = label.Label(terminalio.FONT, text="?" * 30, color=0x000000)
-today_date.anchor_point = (0, 0)
-today_date.anchored_position = (15, 13)
+curtim = label.Label(terminalio.FONT, text="?" * 30, color=0x000000)
+curtim.anchor_point = (0, 0)
+curtim.anchored_position = (15, 24)
 
-city_name = label.Label(terminalio.FONT, text=city, color=0x000000)
-city_name.anchor_point = (0, 0)
-city_name.anchored_position = (15, 22)
+curdt = label.Label(terminalio.FONT, text="time", color=0x000000)
+curdt.anchor_point = (0, 0)
+curdt.anchored_position = (15, 14)
 
-today_icon = displayio.TileGrid(
+curicon = displayio.TileGrid(
     icons_large_bmp,
-    pixel_shader=icons_small_pal,
+    pixel_shader=icons_large_pal,
     x=10,
-    y=33,
+    y=34,
     width=1,
     height=1,
     tile_width=70,
     tile_height=70,
-)
+    )
 
-today_description = label.Label(terminalio.FONT, text="Thunderstorm", color=0x000000)
-today_description.anchor_point = (0.5,1)
-today_description.anchored_position = (47,115)
+curcond = label.Label(terminalio.FONT, text="Thunderstorm", color=0x000000)
+curcond.anchor_point = (0.5,1)
+curcond.anchored_position = (47,115)
 
-today_cur_temp = label.Label(terminalio.FONT, text="+100F", color=0x000000)
-today_cur_temp.anchor_point = (0, 0)
-today_cur_temp.anchored_position = (150, 24)
+curtemp = label.Label(terminalio.FONT, text="+100F", color=0x000000)
+curtemp.anchor_point = (0, 0)
+curtemp.anchored_position = (150, 21)
 
-today_min_temp = label.Label(terminalio.FONT, text="+100F", color=0x000000)
-today_min_temp.anchor_point = (0, 0)
-today_min_temp.anchored_position = (100, 50)
+daylo = label.Label(terminalio.FONT, text="+100F", color=0x000000)
+daylo.anchor_point = (0, 0)
+daylo.anchored_position = (100, 50)
 
-today_max_temp = label.Label(terminalio.FONT, text="+100F", color=0x000000)
-today_max_temp.anchor_point = (0, 0)
-today_max_temp.anchored_position = (130, 50)
+dayhi = label.Label(terminalio.FONT, text="+100F", color=0x000000)
+dayhi.anchor_point = (0, 0)
+dayhi.anchored_position = (130, 50)
 
-#today_pop = label.Label(terminalio.FONT, text="100%", color=0x000000)
-#today_pop.anchor_point = (0, 0)
-#today_pop.anchored_position = (165, 50)
+dayprecip = label.Label(terminalio.FONT, text="...", color=0x000000)
+dayprecip.anchor_point = (0, 0)
+dayprecip.anchored_position = (165, 50)
 
-today_humidity = label.Label(terminalio.FONT, text="100%", color=0x000000)
-today_humidity.anchor_point = (0, 0)
-today_humidity.anchored_position = (118, 70)
+curhumid = label.Label(terminalio.FONT, text="100%", color=0x000000)
+curhumid.anchor_point = (0, 0)
+curhumid.anchored_position = (118, 70)
 
-today_wind = label.Label(terminalio.FONT, text="99m/s", color=0x000000)
-today_wind.anchor_point = (0, 0)
-today_wind.anchored_position = (150, 70)
+curwind = label.Label(terminalio.FONT, text="99m/s", color=0x000000)
+curwind.anchor_point = (0, 0)
+curwind.anchored_position = (150, 70)
 
-today_pressure = label.Label(terminalio.FONT, text="99m/s", color=0x000000)
-today_pressure.anchor_point = (0, 0)
-today_pressure.anchored_position = (105, 94)
+curprs = label.Label(terminalio.FONT, text="99m/s", color=0x000000)
+curprs.anchor_point = (0, 0)
+curprs.anchored_position = (105, 94)
 
-#today_uvi = label.Label(terminalio.FONT, text="100%", color=0x000000)
-#today_uvi.anchor_point = (0, 0)
-#today_uvi.anchored_position = (160, 94)
+curuv = label.Label(terminalio.FONT, text="100%", color=0x000000)
+curuv.anchor_point = (0, 0)
+curuv.anchored_position = (160, 94)
 
-today_clouds = label.Label(terminalio.FONT, text="100", color=0x000000)
-today_clouds.anchor_point = (0, 0)
-today_clouds.anchored_position = (165, 50)
+curcloud = label.Label(terminalio.FONT, text="100", color=0x000000)
+curcloud.anchor_point = (0, 0)
+curcloud.anchored_position = (165, 50)
 
-today_sunrise = label.Label(terminalio.FONT, text="12:12 PM", color=0x000000)
-today_sunrise.anchor_point = (0, 0.5)
-today_sunrise.anchored_position = (45, 120)
+sunrise = label.Label(terminalio.FONT, text="12:12 PM", color=0x000000)
+sunrise.anchor_point = (0, 0.5)
+sunrise.anchored_position = (45, 120)
 
-today_sunset = label.Label(terminalio.FONT, text="12:12 PM", color=0x000000)
-today_sunset.anchor_point = (0, 0.5)
-today_sunset.anchored_position = (130, 120)
+sunset = label.Label(terminalio.FONT, text="12:12 PM", color=0x000000)
+sunset.anchor_point = (0, 0.5)
+sunset.anchored_position = (130, 120)
 
 today_banner = displayio.Group()
-today_banner.append(today_date)
-today_banner.append(city_name)
-today_banner.append(today_icon)
-today_banner.append(today_description)
-today_banner.append(today_cur_temp)
-today_banner.append(today_min_temp)
-today_banner.append(today_max_temp)
-today_banner.append(today_humidity)
-today_banner.append(today_pressure)
-#today_banner.append(today_uvi)
-#today_banner.append(today_pop)
-today_banner.append(today_clouds)
-today_banner.append(today_wind)
-today_banner.append(today_sunrise)
-today_banner.append(today_sunset)
+today_banner.append(curdt)
+today_banner.append(curtim)
+today_banner.append(curtemp)
+#today_banner.append(curfeels)
+today_banner.append(curprs)
+today_banner.append(curwind)
+#today_banner.append(curgust)
+today_banner.append(curhumid)
+today_banner.append(curuv)
+#today_banner.append(curaq)
+today_banner.append(curcloud)
+#today_banner.append(curvis)
+today_banner.append(curicon)
+today_banner.append(curcond)
+today_banner.append(sunrise)
+today_banner.append(sunset)
+today_banner.append(dayhi)
+today_banner.append(daylo)
+today_banner.append(dayprecip)
 
 future_banners = [
     make_banner(x=203, y=18),
@@ -304,21 +212,67 @@ for future_banner in future_banners:
 # ===========
 #  M A I N
 # ===========
-print("Fetching forecast...")
-forecast_data, current, utc_time, local_tz_offset = get_forecast(latlon)
 
-print("Updating...")
-update_today(forecast_data[0], local_tz_offset)
-update_now(current, local_tz_offset)
-for day, forecast in enumerate(forecast_data[1:6]):
+#***** Pull in Weather and AQI Data
+print("Fetching forecast from OWM")
+final_url = weather_url + "appid=" + key + "&lat=" + lat + "&lon=" + lon
+weather_data = magtag.network.fetch(final_url).json()
+final_url = aqi_url + "appid=" + key + "&lat=" + lat + "&lon=" + lon
+aqi_data = magtag.network.fetch(final_url).json()
+
+#***** Setup buckets of data
+print()
+print("Setting up data buckets")
+tzoffset = weather_data["timezone_offset"]
+currentd = weather_data["current"] 
+utc_time = currentd["dt"]
+todayd = weather_data["daily"][0]
+forecast = weather_data["daily"][1:6]
+
+
+print("Updating data labels")
+date = time.localtime(utc_time + tzoffset)
+sunr = time.localtime(currentd["sunrise"] + tzoffset)
+suns = time.localtime(currentd["sunset"] + tzoffset)
+
+curdt.text = "{} {} {}, {}".format(
+        DAYS[date.tm_wday][:3],
+        MONTHS[date.tm_mon - 1][:3],
+        date.tm_mday,
+        date.tm_year,
+    )
+curtim.text = "As of: {:d}:{:02d}".format(
+        date.tm_hour,
+        date.tm_min,
+    )
+curtemp.text = "{:3.0f}".format(currentd["temp"])
+#curfeels.text = currentd["feels_like"]
+curprs.text = "{:2.2f}".format(currentd["pressure"] * 0.02952998751)
+curwind.text = "{:3.0f}mph".format(currentd["wind_speed"])
+#curgust.text = currentd["wind_gust"]
+curhumid.text = "{:3d}%".format(currentd["humidity"])
+curuv.text = "{:3.0f}%".format(currentd["uvi"])
+#curaq.text = aqi_data["list"][0]["main"]["aqi"]
+curcloud.text = "{:3d}%".format(currentd["clouds"])
+#curvis.text = currentd["visibility"]
+curicon[0] = ICON_MAP.index(currentd["weather"][0]["icon"][:2])
+curcond.text = currentd["weather"][0]["main"]
+sunrise.text = "{:2d}:{:02d} AM".format(sunr.tm_hour, sunr.tm_min)
+sunset.text = "{:2d}:{:02d} PM".format(suns.tm_hour - 12, suns.tm_min)
+
+dayhi.text = "{:3.0f}".format(todayd["temp"]["max"])
+daylo.text = "{:3.0f}".format(todayd["temp"]["min"])
+dayprecip.text = "{:2.0f}%".format(todayd["pop"] * 100)
+
+for day, forecast in enumerate(forecast[0:5]):
     update_banner(future_banners[day], forecast)
 
-print("Refreshing...")
+print("Refreshing display")
 time.sleep(magtag.display.time_to_refresh + 1)
 magtag.display.refresh()
 time.sleep(magtag.display.time_to_refresh + 1)
 
 print("Sleeping...")
-go_to_sleep(utc_time + local_tz_offset)
+go_to_sleep(utc_time + tzoffset)
 #  entire code will run again after deep sleep cycle
 #  similar to hitting the reset button
